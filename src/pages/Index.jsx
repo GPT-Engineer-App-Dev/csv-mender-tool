@@ -1,14 +1,18 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { CSVLink } from 'react-csv';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const Index = () => {
   const [csvData, setCsvData] = useState([]);
   const [headers, setHeaders] = useState([]);
+  const [xAxis, setXAxis] = useState('');
+  const [yAxis, setYAxis] = useState('');
 
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0];
@@ -16,10 +20,28 @@ const Index = () => {
       complete: (results) => {
         setHeaders(results.data[0]);
         setCsvData(results.data.slice(1));
+        // Set default X and Y axes
+        setXAxis(results.data[0][0]);
+        setYAxis(results.data[0][1]);
       },
       header: false,
     });
   }, []);
+
+  const numericalColumns = useMemo(() => {
+    return headers.filter((header, index) => 
+      csvData.every(row => !isNaN(parseFloat(row[index])))
+    );
+  }, [headers, csvData]);
+
+  const chartData = useMemo(() => {
+    const xIndex = headers.indexOf(xAxis);
+    const yIndex = headers.indexOf(yAxis);
+    return csvData.map(row => ({
+      [xAxis]: row[xIndex],
+      [yAxis]: parseFloat(row[yIndex])
+    }));
+  }, [csvData, headers, xAxis, yAxis]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
@@ -85,7 +107,7 @@ const Index = () => {
             </Table>
           </div>
 
-          <div className="flex justify-between mt-6">
+          <div className="flex justify-between mt-6 mb-8">
             <Button onClick={handleAddRow} className="bg-gray-600 hover:bg-gray-700 text-white">Add Row</Button>
             <CSVLink
               data={[headers, ...csvData]}
@@ -94,6 +116,42 @@ const Index = () => {
             >
               Download CSV
             </CSVLink>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">Graph Visualization</h2>
+            <div className="flex space-x-4 mb-4">
+              <Select onValueChange={setXAxis} value={xAxis}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select X-Axis" />
+                </SelectTrigger>
+                <SelectContent>
+                  {headers.map((header) => (
+                    <SelectItem key={header} value={header}>{header}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select onValueChange={setYAxis} value={yAxis}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select Y-Axis" />
+                </SelectTrigger>
+                <SelectContent>
+                  {numericalColumns.map((header) => (
+                    <SelectItem key={header} value={header}>{header}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={xAxis} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey={yAxis} stroke="#8884d8" activeDot={{ r: 8 }} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
